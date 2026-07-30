@@ -1,0 +1,254 @@
+export const SPONSOR_PLACEMENT_KINDS = [
+  "topBanner",
+  "home",
+  "apiTransit",
+  "apiTransitModels",
+  "apiModels",
+] as const;
+
+export type SponsorPlacementKind = (typeof SPONSOR_PLACEMENT_KINDS)[number];
+export type SponsorTone = "green" | "blue" | "amber";
+export type SponsorCreativeStatus = "draft" | "live" | "paused" | "expired";
+export const SPONSOR_DISCLOSURE_LABEL_MAX_LENGTH = 8;
+export const sponsorDisclosureLabelOptions = [
+  "广告",
+  "赞助",
+  "广告赞助",
+  "活动赞助",
+  "生态赞助",
+  "合作展示",
+] as const;
+
+export type SponsorCreative = {
+  id: string;
+  enabled: boolean;
+  status: SponsorCreativeStatus;
+  title: string;
+  description: string;
+  targetUrl: string;
+  appendUtm?: boolean;
+  sponsorName?: string | null;
+  campaignId?: string | null;
+  imageUrl?: string | null;
+  visualTitle?: string | null;
+  visualMeta?: string | null;
+  label?: string | null;
+  tone: SponsorTone;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
+export type SponsorPlacementConfig = {
+  enabled: boolean;
+  creatives: SponsorCreative[];
+};
+
+export type SponsorSettingsSummary = {
+  configured: boolean;
+  tableReady: boolean;
+  enabled: boolean;
+  updatedAt: string | null;
+  message: string | null;
+  placements: Record<SponsorPlacementKind, SponsorPlacementConfig>;
+};
+
+export const sponsorPlacementLabels: Record<SponsorPlacementKind, string> = {
+  topBanner: "全站顶部横幅",
+  home: "首页生态合作位",
+  apiTransit: "中转 API 赞助位",
+  apiTransitModels: "中转 API 赞助位（兼容）",
+  apiModels: "官方 API 页赞助位",
+};
+
+export function defaultSponsorDisclosureLabel(kind: SponsorPlacementKind | string): string {
+  return kind === "apiTransit" || kind === "apiTransitModels" ? "赞助" : "广告";
+}
+
+export function sponsorCreativeDisclosureLabel(
+  creative: Pick<SponsorCreative, "label"> | null | undefined,
+  kind: SponsorPlacementKind | string,
+): string {
+  const label = String(creative?.label || "").trim().slice(0, SPONSOR_DISCLOSURE_LABEL_MAX_LENGTH);
+  return label || defaultSponsorDisclosureLabel(kind);
+}
+
+export const defaultSponsorCreativesByPlacement: Record<SponsorPlacementKind, SponsorCreative[]> = {
+  topBanner: [
+    {
+      id: "top-ai-ecosystem",
+      enabled: true,
+      status: "live",
+      title: "AI 周边赞助位开放",
+      description: "适合云服务器、开发者工具、监控、域名、支付、算力等服务。",
+      targetUrl: "/commercial#slots",
+      appendUtm: true,
+      visualTitle: "AI 周边服务",
+      visualMeta: "云服务 / 监控 / 开发工具",
+      tone: "green",
+    },
+  ],
+  home: [
+    {
+      id: "home-developer-stack",
+      enabled: true,
+      status: "live",
+      title: "PriceAI 生态合作展示",
+      description: "适合 AI 周边服务、开发者基础设施或工具类品牌的轻曝光。",
+      targetUrl: "/commercial#slots",
+      appendUtm: true,
+      visualTitle: "Developer Stack",
+      visualMeta: "品牌图 / 短标题 / 落地页",
+      tone: "blue",
+    },
+  ],
+  apiTransit: [
+    {
+      id: "api-transit-gateway",
+      enabled: true,
+      status: "live",
+      title: "API Gateway / 中转站共用赞助展示",
+      description: "适合展示品牌、优惠码和资料入口；站点页与模型页共用同一套素材与开关。",
+      targetUrl: "/commercial#slots",
+      appendUtm: true,
+      visualTitle: "API Gateway",
+      visualMeta: "公开价格 / 优惠码 / 监测资料",
+      tone: "green",
+    },
+  ],
+  apiTransitModels: [
+    {
+      id: "api-transit-model-router",
+      enabled: true,
+      status: "live",
+      title: "API Gateway / 中转站共用赞助展示",
+      description: "适合展示品牌、优惠码和资料入口；站点页与模型页共用同一套素材与开关。",
+      targetUrl: "/commercial#slots",
+      appendUtm: true,
+      visualTitle: "Model Router",
+      visualMeta: "Claude / GPT / Gemini",
+      tone: "amber",
+    },
+  ],
+  apiModels: [
+    {
+      id: "api-models-toolkit",
+      enabled: true,
+      status: "live",
+      title: "模型 API 与开发者工具赞助",
+      description: "面向比较官方 API、Token Plan、模型路由和开发工具的用户。",
+      targetUrl: "/commercial#slots",
+      appendUtm: true,
+      visualTitle: "API Toolkit",
+      visualMeta: "Token Plan / 路由 / 监控 / SDK",
+      tone: "blue",
+    },
+  ],
+};
+
+export function createDefaultSponsorSettingsSummary(
+  overrides: Partial<Pick<SponsorSettingsSummary, "configured" | "tableReady" | "enabled" | "updatedAt" | "message">> = {},
+): SponsorSettingsSummary {
+  return {
+    configured: false,
+    tableReady: false,
+    enabled: false,
+    updatedAt: null,
+    message: null,
+    placements: syncTransitSponsorPlacements({
+      topBanner: disabledDefaultPlacement("topBanner"),
+      home: disabledDefaultPlacement("home"),
+      apiTransit: disabledDefaultPlacement("apiTransit"),
+      apiTransitModels: disabledDefaultPlacement("apiTransitModels"),
+      apiModels: disabledDefaultPlacement("apiModels"),
+    }),
+    ...overrides,
+  };
+}
+
+export function getVisibleSponsorCreatives(
+  settings: SponsorSettingsSummary | null | undefined,
+  kind: SponsorPlacementKind,
+  now = new Date(),
+): SponsorCreative[] {
+  if (!settings?.enabled) return [];
+  const placement = getEffectiveSponsorPlacement(settings, kind);
+  if (!placement?.enabled) return [];
+
+  return placement.creatives.filter((creative) => isSponsorCreativeVisible(creative, now));
+}
+
+export function isSponsorCreativeVisible(creative: SponsorCreative, now = new Date()): boolean {
+  if (!creative.enabled || creative.status !== "live") return false;
+  if (creative.startsAt && Date.parse(creative.startsAt) > now.getTime()) return false;
+  if (creative.endsAt && Date.parse(creative.endsAt) < now.getTime()) return false;
+  return true;
+}
+
+function disabledDefaultPlacement(kind: SponsorPlacementKind): SponsorPlacementConfig {
+  return {
+    enabled: false,
+    creatives: cloneCreatives(defaultSponsorCreativesByPlacement[kind]),
+  };
+}
+
+function cloneCreatives(creatives: SponsorCreative[]): SponsorCreative[] {
+  return creatives.map((creative) => ({ ...creative }));
+}
+
+function syncTransitSponsorPlacements(
+  placements: Record<SponsorPlacementKind, SponsorPlacementConfig>,
+): Record<SponsorPlacementKind, SponsorPlacementConfig> {
+  const canonical = selectTransitSponsorPlacement(placements.apiTransit, placements.apiTransitModels);
+  const mirrored = clonePlacement(canonical);
+
+  return {
+    ...placements,
+    apiTransit: mirrored,
+    apiTransitModels: clonePlacement(mirrored),
+  };
+}
+
+function selectTransitSponsorPlacement(
+  apiTransit: SponsorPlacementConfig,
+  apiTransitModels: SponsorPlacementConfig,
+): SponsorPlacementConfig {
+  if (hasSponsorPlacementVisibility(apiTransit)) return apiTransit;
+  if (hasSponsorPlacementVisibility(apiTransitModels)) return apiTransitModels;
+  if (hasSponsorPlacementContent(apiTransit)) return apiTransit;
+  if (hasSponsorPlacementContent(apiTransitModels)) return apiTransitModels;
+  return apiTransit;
+}
+
+function hasSponsorPlacementContent(placement: SponsorPlacementConfig): boolean {
+  return placement.creatives.length > 0;
+}
+
+function hasSponsorPlacementVisibility(placement: SponsorPlacementConfig): boolean {
+  return placement.enabled && placement.creatives.length > 0;
+}
+
+function clonePlacement(placement: SponsorPlacementConfig): SponsorPlacementConfig {
+  return {
+    enabled: placement.enabled,
+    creatives: cloneCreatives(placement.creatives),
+  };
+}
+
+function getEffectiveSponsorPlacement(
+  settings: SponsorSettingsSummary,
+  kind: SponsorPlacementKind,
+): SponsorPlacementConfig | null {
+  const placement = settings.placements[kind] || null;
+  if (kind !== "apiTransit" && kind !== "apiTransitModels") {
+    return placement;
+  }
+
+  const transitPlacement = settings.placements.apiTransit;
+  const modelPlacement = settings.placements.apiTransitModels;
+  if (hasSponsorPlacementVisibility(transitPlacement)) return transitPlacement;
+  if (hasSponsorPlacementVisibility(modelPlacement)) return modelPlacement;
+  if (hasSponsorPlacementContent(transitPlacement)) return transitPlacement;
+  if (hasSponsorPlacementContent(modelPlacement)) return modelPlacement;
+
+  return placement;
+}

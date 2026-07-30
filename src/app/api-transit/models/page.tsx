@@ -1,0 +1,81 @@
+import type { Metadata } from "next";
+import { getTransitStations } from "@/lib/api-transit-db";
+import { compactTransitStationsForList, formatRate, getTransitModelFamilyOptions, getTransitModelSummaries } from "@/lib/api-transit";
+import TransitModelExplorer from "@/components/TransitModelExplorer";
+import { JsonLd } from "@/components/JsonLd";
+import { ApiTransitPageShell } from "@/components/ApiTransitPageShell";
+
+export const metadata: Metadata = {
+  title: "中转 API 模型对比",
+  description: "按 ChatGPT、Claude、Gemini、Grok、GLM、DeepSeek、图片生成、视频生成等标准模型对比各 API 中转站的充值系数、模型倍率、综合倍率和近 7 日稳定性。",
+  alternates: {
+    canonical: "/api-transit/models",
+  },
+  openGraph: {
+    title: "PriceAI 中转 API 模型对比",
+    description: "按主流标准模型对比中转站价格与稳定性。",
+    url: "https://priceai.cc/api-transit/models",
+  },
+};
+
+export const revalidate = 300;
+
+export default async function ApiTransitModelsPage() {
+  const stations = await getTransitStations();
+  const familyOptions = getTransitModelFamilyOptions();
+  const listStations = compactTransitStationsForList(stations);
+  const modelSummaries = getTransitModelSummaries(listStations, "all");
+  const bestRate =
+    modelSummaries
+      .map((summary) => summary.bestCombinedRate)
+      .filter((rate): rate is number => rate !== null)
+      .sort((a, b) => a - b)[0] ?? null;
+  const sampleCount = modelSummaries.reduce((total, summary) => total + summary.sampleCount, 0);
+
+  return (
+    <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: "PriceAI 中转 API 模型对比",
+          url: "https://priceai.cc/api-transit/models",
+          inLanguage: "zh-CN",
+          description: "按主流标准模型对比 API 中转站价格与稳定性。",
+        }}
+      />
+
+      <ApiTransitPageShell
+        familyOptions={familyOptions}
+        title="中转 API 模型对比"
+        meta={
+          <>
+            <span>按标准模型横向看站点差异</span>
+            <span className="h-1 w-1 rounded-full bg-[var(--color-border-muted)]" />
+            <span>先看倍率，再看稳定性</span>
+          </>
+        }
+        stats={
+          <>
+            <Metric label="标准模型" value={`${modelSummaries.length}`} />
+            <Metric label="样本" value={`${sampleCount}`} />
+            <Metric label="最低综合倍率" value={formatRate(bestRate)} />
+            <Metric label="站点" value={`${listStations.length}`} />
+          </>
+        }
+        description="按标准模型横向对比各中转站的充值系数、模型倍率、综合倍率和近 7 日稳定性。站点榜仍是主入口，模型页用于快速查某个模型在哪些站点更便宜。"
+      >
+        <TransitModelExplorer stations={listStations} />
+      </ApiTransitPageShell>
+    </>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs text-[var(--color-text-soft)]">{label}</p>
+      <p className="mt-1 truncate text-base text-[var(--color-text-primary)]">{value}</p>
+    </div>
+  );
+}

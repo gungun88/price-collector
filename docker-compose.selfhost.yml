@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: priceai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: priceai
+      POSTGRES_USER: priceai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-priceai_dev_password}
+    ports:
+      - "15432:5432"
+    volumes:
+      - priceai-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U priceai -d priceai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: priceai-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: 0.0.0.0
+      PORT: 4100
+      DATABASE_URL: postgres://priceai:${POSTGRES_PASSWORD:-priceai_dev_password}@postgres:5432/priceai
+      APP_SECRET: ${APP_SECRET:-replace-with-a-long-random-secret-at-least-32-chars}
+      PRICEAI_FORWARD_SECRET: ${PRICEAI_FORWARD_SECRET:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      ADMIN_PASSWORD_HASH_B64: ${ADMIN_PASSWORD_HASH_B64:-c2NyeXB0JGM2ZGVhZmZiMTgyODk1ZTc2MGQ5YTEwYjQ2OGY0NmVhJDk2NGY0ZWQ4NTU4NzA4MWE2ZjQ1Njg4ZjY2N2JjNDY5YjYwNmI0MGE3MjUzYmYwYTliMjNiMjA4MDVjZDk0N2JkZGE5YjZhZTQzZDA4NDViOWMxOGJkOWM2NDdiOWI0M2U5NjY1NGQ5NmVjNGE4ZDllMTI4MTllNmY3ZWRmNGU4}
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "4100:4100"
+
+volumes:
+  priceai-postgres-data:
