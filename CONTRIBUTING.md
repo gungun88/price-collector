@@ -16,7 +16,7 @@ npm run lint
 npm run build
 ```
 
-如果需要真实数据，请参考 [配置说明](./public-docs/configuration.md) 初始化 Supabase 和环境变量。
+如果需要真实数据，请参考 [配置说明](./public-docs/configuration.md) 初始化自托管 PostgreSQL 后端和环境变量。
 
 ## 分支与 Pull Request
 
@@ -68,7 +68,7 @@ npm run collect:prices -- --source source-id --post
 不要提交：
 
 - `.env.local`
-- Supabase service role key
+- 数据库连接串、应用密钥或采集密钥
 - 后台密码
 - 真实用户隐私数据
 - 需要绕过限制才能访问的页面内容

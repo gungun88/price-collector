@@ -18,7 +18,7 @@
 请不要提交或公开：
 
 - `.env.local`
-- Supabase service role key
+- 数据库连接串、应用密钥或采集密钥
 - `ADMIN_PASSWORD`
 - `CRON_SECRET`
 - Vercel token
