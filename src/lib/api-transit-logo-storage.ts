@@ -1,48 +1,20 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
   API_TRANSIT_LOGO_BUCKET_HOST,
   API_TRANSIT_LOGO_URL_PREFIX,
 } from "@/lib/api-transit-logo-url";
+import { getLocalObject, putLocalObject } from "@/lib/local-object-storage";
 
 export const API_TRANSIT_LOGO_MAX_BYTES = 512 * 1024;
 
-const API_TRANSIT_LOGO_BINDING = "FEEDBACK_EVIDENCE_BUCKET";
 const allowedLogoTypes = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
   ["image/webp", "webp"],
   ["image/svg+xml", "svg"],
 ]);
-
-type ApiTransitLogoBucket = {
-  put: (
-    key: string,
-    value: ArrayBuffer,
-    options?: {
-      httpMetadata?: {
-        contentType?: string;
-        contentDisposition?: string;
-      };
-      customMetadata?: Record<string, string>;
-    },
-  ) => Promise<unknown>;
-  get: (key: string) => Promise<ApiTransitLogoObject | null>;
-};
-
-type ApiTransitLogoObject = {
-  body: ReadableStream;
-  size?: number;
-  httpMetadata?: {
-    contentType?: string;
-  };
-};
-
-type ApiTransitLogoEnv = CloudflareEnv & {
-  FEEDBACK_EVIDENCE_BUCKET?: ApiTransitLogoBucket;
-};
 
 export type ApiTransitLogoUploadResult = {
   url: string;
@@ -64,11 +36,10 @@ export async function uploadApiTransitLogoImage(
 ): Promise<ApiTransitLogoUploadResult> {
   validateApiTransitLogoImage(file);
 
-  const bucket = await getApiTransitLogoBucket();
   const key = buildApiTransitLogoKey(stationId, file.type);
   const body = await file.arrayBuffer();
 
-  await bucket.put(key, body, {
+  await putLocalObject(key, body, {
     httpMetadata: {
       contentType: file.type,
       contentDisposition: `inline; filename="${safeFilename(file.name || "logo")}"`,
@@ -93,8 +64,7 @@ export async function readApiTransitLogoImage(reference: string): Promise<ApiTra
   const key = parseApiTransitLogoKey(reference);
   if (!key) return null;
 
-  const bucket = await getApiTransitLogoBucket();
-  const object = await bucket.get(key);
+  const object = await getLocalObject(key);
   if (!object) return null;
 
   return {
@@ -137,18 +107,6 @@ function parseApiTransitLogoKey(reference: string): string | null {
     return key;
   } catch {
     return null;
-  }
-}
-
-async function getApiTransitLogoBucket(): Promise<ApiTransitLogoBucket> {
-  try {
-    const context = await getCloudflareContext({ async: true });
-    const bucket = (context.env as ApiTransitLogoEnv)[API_TRANSIT_LOGO_BINDING];
-    if (!bucket) throw new Error("Logo 上传暂不可用：R2 存储尚未配置。");
-    return bucket;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("R2 存储尚未配置")) throw error;
-    throw new Error("Logo 上传暂不可用：R2 存储尚未配置。");
   }
 }
 

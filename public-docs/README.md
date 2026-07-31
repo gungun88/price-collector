@@ -9,6 +9,7 @@
 | [项目架构](./architecture.md) | PriceAI 的核心数据流、前台和后台边界 |
 | [配置说明](./configuration.md) | 本地开发和自部署所需的环境变量 |
 | [部署说明](./deployment.md) | 自托管 Next.js / Fastify / PostgreSQL 部署路径 |
+| [VPS 部署说明](./vps-deployment.md) | 不使用 Cloudflare Workers 的 Docker Compose 部署路径 |
 | [采集器贡献](./collectors.md) | 新增或修复采集器时需要遵守的规则 |
 | [数据策略](./data-policy.md) | 库存、新鲜度、最低价和分类原则 |
 | [API 中转站收录说明](./api-transit-station-admission.md) | 面向中转站站长的公开收录与合作要求 |

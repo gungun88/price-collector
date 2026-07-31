@@ -1,47 +1,19 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
   SPONSOR_ASSET_BUCKET_HOST,
   SPONSOR_ASSET_URL_PREFIX,
 } from "@/lib/sponsor-asset-url";
+import { getLocalObject, putLocalObject } from "@/lib/local-object-storage";
 
 export const SPONSOR_ASSET_MAX_BYTES = 2 * 1024 * 1024;
 
-const SPONSOR_ASSET_BINDING = "FEEDBACK_EVIDENCE_BUCKET";
 const allowedSponsorAssetTypes = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
   ["image/webp", "webp"],
 ]);
-
-type SponsorAssetBucket = {
-  put: (
-    key: string,
-    value: ArrayBuffer,
-    options?: {
-      httpMetadata?: {
-        contentType?: string;
-        contentDisposition?: string;
-      };
-      customMetadata?: Record<string, string>;
-    },
-  ) => Promise<unknown>;
-  get: (key: string) => Promise<SponsorAssetObject | null>;
-};
-
-type SponsorAssetObject = {
-  body: ReadableStream;
-  size?: number;
-  httpMetadata?: {
-    contentType?: string;
-  };
-};
-
-type SponsorAssetEnv = CloudflareEnv & {
-  FEEDBACK_EVIDENCE_BUCKET?: SponsorAssetBucket;
-};
 
 export type SponsorAssetUploadResult = {
   url: string;
@@ -64,11 +36,10 @@ export async function uploadSponsorAssetImage(
 ): Promise<SponsorAssetUploadResult> {
   validateSponsorAssetImage(file);
 
-  const bucket = await getSponsorAssetBucket();
   const key = buildSponsorAssetKey(placement, creativeId, file.type);
   const body = await file.arrayBuffer();
 
-  await bucket.put(key, body, {
+  await putLocalObject(key, body, {
     httpMetadata: {
       contentType: file.type,
       contentDisposition: `inline; filename="${safeFilename(file.name || "sponsor")}"`,
@@ -94,8 +65,7 @@ export async function readSponsorAssetImage(reference: string): Promise<SponsorA
   const key = parseSponsorAssetKey(reference);
   if (!key) return null;
 
-  const bucket = await getSponsorAssetBucket();
-  const object = await bucket.get(key);
+  const object = await getLocalObject(key);
   if (!object) return null;
 
   return {
@@ -142,18 +112,6 @@ function parseSponsorAssetKey(reference: string): string | null {
     return key;
   } catch {
     return null;
-  }
-}
-
-async function getSponsorAssetBucket(): Promise<SponsorAssetBucket> {
-  try {
-    const context = await getCloudflareContext({ async: true });
-    const bucket = (context.env as SponsorAssetEnv)[SPONSOR_ASSET_BINDING];
-    if (!bucket) throw new Error("赞助图片上传暂不可用：R2 存储尚未配置。");
-    return bucket;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("R2 存储尚未配置")) throw error;
-    throw new Error("赞助图片上传暂不可用：R2 存储尚未配置。");
   }
 }
 

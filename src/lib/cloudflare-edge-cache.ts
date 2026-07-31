@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { buildCloudflarePublicCacheKeyUrl } from "@/lib/cloudflare-cache-key";
 
 type CloudflareCacheStorage = {
@@ -45,12 +44,7 @@ export async function withCloudflarePublicCache(
     headers: storedHeaders,
   });
 
-  try {
-    const context = await getCloudflareContext({ async: true });
-    context.ctx.waitUntil(cache.put(cacheKey, cacheResponse));
-  } catch {
-    await cache.put(cacheKey, cacheResponse).catch(() => undefined);
-  }
+  await cache.put(cacheKey, cacheResponse).catch(() => undefined);
 
   return withEdgeCacheHeader(response, "MISS");
 }

@@ -1,8 +1,8 @@
 export const infrastructureRuntimeProfile = {
-  productionTarget: "Cloudflare Workers + OpenNext",
-  workerName: "priceai-cloudflare-poc",
-  incrementalCache: "R2 Standard",
-  revalidationQueue: "Durable Object Queue",
+  productionTarget: "Node.js VPS + Next.js",
+  workerName: null,
+  incrementalCache: "Next.js filesystem cache",
+  revalidationQueue: "Next.js server runtime",
   regionalCacheMode: "short-lived",
   regionalCacheMaxAgeSeconds: 60,
   cacheInterceptionEnabled: false,

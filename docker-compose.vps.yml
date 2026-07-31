@@ -1,0 +1,118 @@
+services:
+  postgres:
+    container_name: priceai-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: priceai
+      POSTGRES_USER: priceai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - priceai-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U priceai -d priceai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    container_name: priceai-api
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4100
+      DATABASE_URL: postgres://priceai:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/priceai
+      APP_SECRET: ${APP_SECRET:?set APP_SECRET}
+      PRICEAI_FORWARD_SECRET: ${PRICEAI_FORWARD_SECRET:?set PRICEAI_FORWARD_SECRET}
+      ADMIN_PASSWORD_HASH_B64: ${ADMIN_PASSWORD_HASH_B64:?set ADMIN_PASSWORD_HASH_B64}
+      COOKIE_SECURE: "true"
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS}
+    expose:
+      - "4100"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:4100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  migrate:
+    container_name: priceai-migrate
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://priceai:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/priceai
+    command: ["node", "scripts/migrate.mjs"]
+
+  web:
+    container_name: priceai-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_GA_MEASUREMENT_ID: ${NEXT_PUBLIC_GA_MEASUREMENT_ID:-}
+        NEXT_PUBLIC_UMAMI_SCRIPT_URL: ${NEXT_PUBLIC_UMAMI_SCRIPT_URL:-}
+        NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${NEXT_PUBLIC_UMAMI_WEBSITE_ID:-}
+        NEXT_PUBLIC_UMAMI_ALLOWED_DOMAINS: ${NEXT_PUBLIC_UMAMI_ALLOWED_DOMAINS:-}
+        NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL: ${NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL:-}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SELF_HOSTED_API_BASE_URL: http://api:4100
+      PRICEAI_STORAGE_DIR: /data/storage
+      PRICEAI_FORWARD_SECRET: ${PRICEAI_FORWARD_SECRET:?set PRICEAI_FORWARD_SECRET}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?set ADMIN_SESSION_SECRET}
+      ADMIN_SESSION_VERSION: ${ADMIN_SESSION_VERSION:-1}
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET}
+      API_TRANSIT_CREDENTIAL_ENCRYPTION_KEY: ${API_TRANSIT_CREDENTIAL_ENCRYPTION_KEY:?set API_TRANSIT_CREDENTIAL_ENCRYPTION_KEY}
+      PRICEAI_RISK_REVIEW_API_KEY: ${PRICEAI_RISK_REVIEW_API_KEY:-}
+      PRICEAI_RISK_REVIEW_BASE_URL: ${PRICEAI_RISK_REVIEW_BASE_URL:-}
+      PRICEAI_RISK_REVIEW_MODEL: ${PRICEAI_RISK_REVIEW_MODEL:-}
+      NEXT_PUBLIC_GA_MEASUREMENT_ID: ${NEXT_PUBLIC_GA_MEASUREMENT_ID:-}
+      NEXT_PUBLIC_UMAMI_SCRIPT_URL: ${NEXT_PUBLIC_UMAMI_SCRIPT_URL:-}
+      NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${NEXT_PUBLIC_UMAMI_WEBSITE_ID:-}
+      NEXT_PUBLIC_UMAMI_ALLOWED_DOMAINS: ${NEXT_PUBLIC_UMAMI_ALLOWED_DOMAINS:-}
+      NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL: ${NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL:-}
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - priceai-web-storage:/data/storage
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 8s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  priceai-postgres-data:
+  priceai-web-storage:

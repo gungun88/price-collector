@@ -1,0 +1,11 @@
+.git
+.github
+.next
+.open-next
+.data
+node_modules
+server/node_modules
+npm-debug.log*
+sbom.cdx.json
+.env
+.env.local
